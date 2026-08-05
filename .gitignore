@@ -1,0 +1,45 @@
+# Dependencies
+/vendor
+/node_modules
+
+# Build
+/public/build
+/public/hot
+
+# Environment
+.env
+.env.local
+.env.production
+
+# IDE
+.idea
+.vscode
+*.sublime-*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Storage
+/storage/app/public
+/storage/framework/cache/*
+/storage/framework/sessions/*
+/storage/framework/testing/*
+/storage/framework/views/*
+!/storage/framework/cache/.gitignore
+!/storage/framework/sessions/.gitignore
+!/storage/framework/testing/.gitignore
+!/storage/framework/views/.gitignore
+
+/storage/logs/*
+!/storage/logs/.gitignore
+
+# Tests
+/tests/coverage
+.phpunit.result.cache
+
+# Docker
+docker-compose.override.yml
+
+# Horizon
+/storage/horizon

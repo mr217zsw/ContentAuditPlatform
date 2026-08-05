@@ -1,0 +1,242 @@
+services:
+
+  # ===================== 应用入口 =====================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: audit_app
+    restart: unless-stopped
+    working_dir: /var/www
+    volumes:
+      - ./storage:/var/www/storage
+      - ./bootstrap/cache:/var/www/bootstrap/cache
+    ports:
+      - "${APP_PORT:-8080}:80"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - audit_net
+    environment:
+      - APP_ENV=production
+      - APP_DEBUG=false
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:80/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # ===================== 数据库 =====================
+  mysql:
+    image: mysql:8.0
+    container_name: audit_mysql
+    restart: unless-stopped
+    ports:
+      - "${MYSQL_PORT:-3307}:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-root_secret}
+      MYSQL_DATABASE: ${DB_DATABASE:-content_audit}
+      MYSQL_USER: ${DB_USERNAME:-audit_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-audit_secret}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - audit_net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-proot_secret"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===================== 缓存队列 =====================
+  redis:
+    image: redis:7-alpine
+    container_name: audit_redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - audit_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===================== 队列处理 =====================
+  horizon:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: audit_horizon
+    restart: unless-stopped
+    working_dir: /var/www
+    command: ["php", "artisan", "horizon"]
+    volumes:
+      - ./storage:/var/www/storage
+      - ./bootstrap/cache:/var/www/bootstrap/cache
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - audit_net
+
+  # ===================== WebSocket =====================
+  reverb:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: audit_reverb
+    restart: unless-stopped
+    working_dir: /var/www
+    command:
+      - php
+      - artisan
+      - reverb:start
+      - --host=0.0.0.0
+      - --port=${REVERB_PORT:-8081}
+      - --debug=disabled
+    volumes:
+      - ./storage:/var/www/storage
+      - ./bootstrap/cache:/var/www/bootstrap/cache
+    ports:
+      - "${REVERB_PORT:-8081}:${REVERB_PORT:-8081}"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - audit_net
+    environment:
+      - REVERB_HOST=0.0.0.0
+      - REVERB_PORT=${REVERB_PORT:-8081}
+    healthcheck:
+      test: ["CMD-SHELL", "ss -tlnp | grep -q '${REVERB_PORT:-8081}' || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # ===================== 定时任务 =====================
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: audit_scheduler
+    restart: unless-stopped
+    working_dir: /var/www
+    command: ["/bin/sh", "-c", "while true; do php artisan schedule:run --verbose --no-interaction & sleep 60; done"]
+    volumes:
+      - ./storage:/var/www/storage
+      - ./bootstrap/cache:/var/www/bootstrap/cache
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - audit_net
+
+  # ===================== 监控: Prometheus =====================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: audit_prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./docker/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    networks:
+      - audit_net
+
+  # ===================== 监控: Grafana =====================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: audit_grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin123}
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+    volumes:
+      - ./docker/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./docker/grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - ./docker/grafana-dashboards:/etc/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - audit_net
+
+  # ===================== 监控: Node Exporter =====================
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: audit_node_exporter
+    restart: unless-stopped
+    command:
+      - '--path.rootfs=/host'
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($|/)
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host/rootfs:ro
+    ports:
+      - "${NODE_EXPORTER_PORT:-9100}:9100"
+    networks:
+      - audit_net
+
+  # ===================== 监控: Redis Exporter =====================
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: audit_redis_exporter
+    restart: unless-stopped
+    environment:
+      - REDIS_ADDR=redis:6379
+    depends_on:
+      - redis
+    ports:
+      - "${REDIS_EXPORTER_PORT:-9121}:9121"
+    networks:
+      - audit_net
+
+  # ===================== 监控: MySQL Exporter =====================
+  mysql-exporter:
+    image: prom/mysqld-exporter:latest
+    container_name: audit_mysql_exporter
+    restart: unless-stopped
+    environment:
+      - DATA_SOURCE_NAME=${DB_USERNAME:-audit_user}:${DB_PASSWORD:-audit_secret}@(mysql:3306)/
+    depends_on:
+      - mysql
+    ports:
+      - "${MYSQL_EXPORTER_PORT:-9104}:9104"
+    networks:
+      - audit_net
+
+volumes:
+  mysql_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  audit_net:
+    driver: bridge

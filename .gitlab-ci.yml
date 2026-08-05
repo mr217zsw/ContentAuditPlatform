@@ -1,0 +1,84 @@
+stages:
+  - test
+  - build
+  - deploy
+
+variables:
+  DOCKER_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+  DOCKER_LATEST: $CI_REGISTRY_IMAGE:latest
+
+# ---- 后端测试 ----
+php-test:
+  stage: test
+  image: php:8.2-cli-alpine
+  services:
+    - mysql:8.0
+    - redis:7-alpine
+  variables:
+    DB_HOST: mysql
+    DB_DATABASE: test_audit
+    DB_USERNAME: root
+    DB_PASSWORD: ""
+    REDIS_HOST: redis
+  before_script:
+    - apk add --no-cache composer git
+    - composer install --no-interaction --prefer-dist
+    - cp .env.example .env
+    - php artisan key:generate
+  script:
+    - php artisan migrate --force
+    - php artisan test --coverage-text
+  only:
+    - merge_requests
+    - main
+
+# ---- 前端构建 ----
+fe-build:
+  stage: build
+  image: node:20-alpine
+  before_script:
+    - npm ci
+  script:
+    - npm run build
+  artifacts:
+    paths:
+      - public/build
+    expire_in: 1 day
+  only:
+    - merge_requests
+    - main
+
+# ---- Docker 构建 ----
+docker-build:
+  stage: build
+  image: docker:24
+  services:
+    - docker:24-dind
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" "$CI_REGISTRY" --password-stdin
+  script:
+    - docker build -t $DOCKER_IMAGE -t $DOCKER_LATEST .
+    - docker push $DOCKER_IMAGE
+    - docker push $DOCKER_LATEST
+  only:
+    - main
+
+# ---- 生产部署 ----
+deploy:
+  stage: deploy
+  image: alpine:latest
+  needs:
+    - docker-build
+  before_script:
+    - apk add --no-cache openssh-client
+    - mkdir -p ~/.ssh && echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa && chmod 600 ~/.ssh/id_rsa
+  script:
+    - ssh $SSH_USER@$SSH_HOST "
+        cd /opt/audit-platform &&
+        docker compose pull &&
+        docker compose up -d --force-recreate &&
+        docker system prune -f
+      "
+  only:
+    - main
+  when: manual
