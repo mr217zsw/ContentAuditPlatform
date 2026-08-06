@@ -94,6 +94,7 @@ MYSQL_PORT=3307
 REDIS_PORT=6379
 REVERB_PORT=8081
 
+GRAFANA_PORT=3001
 GRAFANA_USER=admin
 GRAFANA_PASSWORD=admin123
 EOF
@@ -111,7 +112,7 @@ fi
 # ---- 构建并启动 ----
 echo ""
 echo -e "${GREEN}[部署] 构建镜像并启动服务...${NC}"
-docker compose up -d --build 2>&1 | tail -20
+docker compose --profile monitoring up -d --build 2>&1 | tail -20
 
 echo ""
 echo -e "${GREEN}[等待] 服务初始化中 (约 30 秒)...${NC}"
@@ -162,5 +163,5 @@ echo "    停止服务   docker compose down"
 echo ""
 echo -e "  开启监控 (可选):"
 echo "    docker compose --profile monitoring up -d"
-echo "    Grafana → http://${SERVER_IP}:3000 (admin / admin123)"
+echo "    Grafana → http://${SERVER_IP}:3001 (admin / admin123)"
 echo ""
