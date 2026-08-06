@@ -54,7 +54,7 @@ services:
 
   # ===================== 缓存队列 =====================
   redis:
-    image: redis:7-alpine
+    image: redis:7
     container_name: audit_redis
     restart: unless-stopped
     ports:
@@ -180,7 +180,7 @@ services:
       - ./docker/grafana-dashboards:/etc/grafana/dashboards:ro
       - grafana_data:/var/lib/grafana
     ports:
-      - "${GRAFANA_PORT:-3000}:3000"
+      - "${GRAFANA_PORT:-3001}:3000"
     depends_on:
       - prometheus
     networks:
