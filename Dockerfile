@@ -27,10 +27,13 @@ WORKDIR /build
 # 配置国内镜像源（解决服务器连不上 packagist.org 的问题）
 RUN composer config -g repos.packagist composer https://mirrors.aliyun.com/composer/
 
+# 关闭 Composer 2.8+ 的安全阻断机制（policy.advisories.block 默认 true 会拒绝安装有 PKSA 公告的包）
+RUN composer config -g policy.advisories.block false
+
 COPY composer.json composer.lock* ./
 
 # composer.lock 缺失时自动 fallback 到 update
-# --no-audit: 跳过 Composer 2.8+ 的安全审计（避免因 PKSA 公告阻止安装）
+# --no-audit: 跳过安全审计输出
 # --ignore-platform-req=ext-pcntl: Composer 镜像无 pcntl，但生产 PHP 镜像有
 RUN if [ -f composer.lock ]; then \
         composer install \
