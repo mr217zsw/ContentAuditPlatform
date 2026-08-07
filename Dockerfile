@@ -10,6 +10,9 @@ FROM node:20-alpine AS frontend
 
 WORKDIR /build
 
+# 配置国内 npm 镜像源（解决服务器连不上 registry.npmjs.org 的问题）
+RUN npm config set registry https://registry.npmmirror.com
+
 COPY package.json package-lock.json* ./
 RUN npm ci --no-audit --no-fund 2>/dev/null || npm install --no-audit --no-fund
 

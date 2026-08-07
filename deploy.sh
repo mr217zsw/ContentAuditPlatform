@@ -192,23 +192,9 @@ echo -e "  ${CYAN}每完成一个构建步骤会显示进度...${NC}"
 echo ""
 
 BUILD_START=$(date +%s)
-docker compose --profile monitoring build --progress=auto 2>&1 | \
-    grep -E "^#[0-9]+" | \
-    while IFS= read -r line; do
-        # 提取阶段号和描述
-        if [[ "$line" =~ ^#([0-9]+)[[:space:]]+(.*)$ ]]; then
-            step_num="${BASH_REMATCH[1]}"
-            step_desc="${BASH_REMATCH[2]}"
-            # 过滤掉无意义的 Docker 空行
-            if [[ "$step_desc" =~ ^(DONE|CACHED|transferring|sha256|sha512) ]] || [[ -z "$step_desc" ]]; then
-                continue
-            fi
-            ELAPSED=$(( $(date +%s) - BUILD_START ))
-            printf "  ${CYAN}▸${NC} [阶段 %s] %s ${YELLOW}(%ds)${NC}\n" "$step_num" "$step_desc" "$ELAPSED"
-        fi
-    done
+docker compose --profile monitoring build --progress=plain 2>&1
 
-if [ ${PIPESTATUS[0]} -ne 0 ]; then
+if [ $? -ne 0 ]; then
     echo ""
     echo -e "${RED}[✗] 镜像构建失败！${NC}"
     echo -e "${YELLOW}请手动执行以下命令查看详细错误：${NC}"
