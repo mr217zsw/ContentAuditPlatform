@@ -1,0 +1,44 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# 依赖
+node_modules
+vendor
+public/build
+
+# 日志和缓存
+storage/logs/*.log
+storage/framework/cache/data/*
+storage/framework/sessions/*
+storage/framework/views/*
+bootstrap/cache/*.php
+
+# 测试和文档
+tests
+docs
+*.md
+LICENSE
+README.md
+
+# 环境配置
+.env
+.env.production
+.env.*.local
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# 部署相关
+deploy.sh
+docker-compose.yml
+docker
+nginx
+
+# 系统文件
+.DS_Store
+Thumbs.db

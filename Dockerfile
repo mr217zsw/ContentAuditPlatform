@@ -24,15 +24,32 @@ FROM composer:2 AS vendor
 
 WORKDIR /build
 
+# 配置国内镜像源（解决服务器连不上 packagist.org 的问题）
+RUN composer config -g repos.packagist composer https://mirrors.aliyun.com/composer/
+
 COPY composer.json composer.lock* ./
-RUN composer install \
-    --no-dev \
-    --no-interaction \
-    --no-plugins \
-    --no-scripts \
-    --prefer-dist \
-    --optimize-autoloader \
-    --no-progress
+
+# composer.lock 缺失时自动 fallback 到 update
+RUN if [ -f composer.lock ]; then \
+        composer install \
+            --no-dev \
+            --no-interaction \
+            --no-plugins \
+            --no-scripts \
+            --prefer-dist \
+            --optimize-autoloader \
+            --no-progress; \
+    else \
+        echo "[!] composer.lock 不存在，执行 composer update 生成依赖..."; \
+        composer update \
+            --no-dev \
+            --no-interaction \
+            --no-plugins \
+            --no-scripts \
+            --prefer-dist \
+            --optimize-autoloader \
+            --no-progress; \
+    fi
 
 # ===================== 阶段 3: 生产运行镜像 =====================
 FROM php:8.2-fpm-alpine AS production
