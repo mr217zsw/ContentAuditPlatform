@@ -30,6 +30,8 @@ RUN composer config -g repos.packagist composer https://mirrors.aliyun.com/compo
 COPY composer.json composer.lock* ./
 
 # composer.lock 缺失时自动 fallback 到 update
+# --no-audit: 跳过 Composer 2.8+ 的安全审计（避免因 PKSA 公告阻止安装）
+# --ignore-platform-req=ext-pcntl: Composer 镜像无 pcntl，但生产 PHP 镜像有
 RUN if [ -f composer.lock ]; then \
         composer install \
             --no-dev \
@@ -38,7 +40,9 @@ RUN if [ -f composer.lock ]; then \
             --no-scripts \
             --prefer-dist \
             --optimize-autoloader \
-            --no-progress; \
+            --no-progress \
+            --no-audit \
+            --ignore-platform-req=ext-pcntl; \
     else \
         echo "[!] composer.lock 不存在，执行 composer update 生成依赖..."; \
         composer update \
@@ -48,7 +52,9 @@ RUN if [ -f composer.lock ]; then \
             --no-scripts \
             --prefer-dist \
             --optimize-autoloader \
-            --no-progress; \
+            --no-progress \
+            --no-audit \
+            --ignore-platform-req=ext-pcntl; \
     fi
 
 # ===================== 阶段 3: 生产运行镜像 =====================
