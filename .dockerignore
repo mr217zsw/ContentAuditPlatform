@@ -33,11 +33,9 @@ README.md
 *.swp
 *.swo
 
-# 部署相关
+# 部署相关（仅排除宿主机文件，docker/ 和 nginx/ 含构建所需文件必须保留）
 deploy.sh
 docker-compose.yml
-docker
-nginx
 
 # 系统文件
 .DS_Store
