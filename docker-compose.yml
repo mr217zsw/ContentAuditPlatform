@@ -6,6 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile
       target: production
+    image: audit-app:latest
     container_name: audit_app
     restart: unless-stopped
     working_dir: /var/www
@@ -71,10 +72,7 @@ services:
 
   # ===================== 队列处理 =====================
   horizon:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: production
+    image: audit-app:latest
     container_name: audit_horizon
     restart: unless-stopped
     working_dir: /var/www
@@ -83,6 +81,8 @@ services:
       - ./storage:/var/www/storage
       - ./bootstrap/cache:/var/www/bootstrap/cache
     depends_on:
+      app:
+        condition: service_started
       mysql:
         condition: service_healthy
       redis:
@@ -92,10 +92,7 @@ services:
 
   # ===================== WebSocket =====================
   reverb:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: production
+    image: audit-app:latest
     container_name: audit_reverb
     restart: unless-stopped
     working_dir: /var/www
@@ -112,6 +109,8 @@ services:
     ports:
       - "${REVERB_PORT:-8081}:${REVERB_PORT:-8081}"
     depends_on:
+      app:
+        condition: service_started
       redis:
         condition: service_healthy
     networks:
@@ -127,10 +126,7 @@ services:
 
   # ===================== 定时任务 =====================
   scheduler:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: production
+    image: audit-app:latest
     container_name: audit_scheduler
     restart: unless-stopped
     working_dir: /var/www
@@ -139,6 +135,8 @@ services:
       - ./storage:/var/www/storage
       - ./bootstrap/cache:/var/www/bootstrap/cache
     depends_on:
+      app:
+        condition: service_started
       mysql:
         condition: service_healthy
       redis:
