@@ -108,6 +108,9 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
         opcache
 
 # ---- PHP Opcache 生产优化 ----
+# 删除 docker-php-ext-install 自动生成的 opcache ini（里面含 zend_extension=opcache.so，CLI 下会重复加载报错）
+# 用我们自己干净的参数文件替代
+RUN rm -f /usr/local/etc/php/conf.d/docker-php-ext-opcache.ini
 COPY docker/opcache.ini /usr/local/etc/php/conf.d/opcache.ini
 
 # ---- PHP-FPM 生产优化 ----

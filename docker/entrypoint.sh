@@ -29,7 +29,29 @@ fi
 
 if ! grep -q "^APP_KEY=base64:" /var/www/.env 2>/dev/null; then
   echo "[entrypoint:${APP_ROLE}] APP_KEY 未设置, 自动生成..."
-  cd /var/www && php artisan key:generate --force
+
+  # 方法 1: 尝试 artisan key:generate（正常路径）
+  cd /var/www && php artisan key:generate --force --no-interaction 2>/dev/null || true
+
+  # 方法 2: fallback - 如果 artisan 因 OPcache CLI 冲突等原因失败，直接用 PHP 生成 APP_KEY 并写入 .env
+  if ! grep -q "^APP_KEY=base64:" /var/www/.env 2>/dev/null; then
+    echo "[entrypoint:${APP_ROLE}] artisan key:generate 未能写入 APP_KEY，使用 fallback 直接生成..."
+    FALLBACK_KEY=$(php -r 'echo "base64:" . base64_encode(random_bytes(32));')
+    if [ -n "$FALLBACK_KEY" ]; then
+      # 如果 .env 中已有空的 APP_KEY= 行，则替换；否则追加
+      if grep -q "^APP_KEY=" /var/www/.env 2>/dev/null; then
+        sed -i "s|^APP_KEY=.*|APP_KEY=${FALLBACK_KEY}|" /var/www/.env
+      else
+        echo "APP_KEY=${FALLBACK_KEY}" >> /var/www/.env
+      fi
+      echo "[entrypoint:${APP_ROLE}] APP_KEY 已通过 fallback 写入: ${FALLBACK_KEY}"
+    else
+      echo "[entrypoint:${APP_ROLE}] 严重错误: 无法生成 APP_KEY！Laravel 将无法启动"
+    fi
+  fi
+
+  # 确保 .env 权限正确（horizon/reverb/scheduler 以 www-data 身份运行）
+  chown www-data:www-data /var/www/.env 2>/dev/null || true
 fi
 
 # ===================== app 角色专属：等待基础设施就绪 + 缓存优化 =====================
