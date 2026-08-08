@@ -39,6 +39,7 @@ COPY composer.json composer.lock* ./
 
 # composer.lock 缺失时自动 fallback 到 update
 # --no-audit: 跳过安全审计输出
+# --ignore-platform-req=php: 允许 composer 用比 lock 文件要求的 PHP 版本更低的 PHP（解决 laravel/framework ^11.0 引入 PHP 8.4 要求的问题）
 # --ignore-platform-req=ext-pcntl: Composer 镜像无 pcntl，但生产 PHP 镜像有
 RUN if [ -f composer.lock ]; then \
         composer install \
@@ -50,6 +51,7 @@ RUN if [ -f composer.lock ]; then \
             --optimize-autoloader \
             --no-progress \
             --no-audit \
+            --ignore-platform-req=php \
             --ignore-platform-req=ext-pcntl; \
     else \
         echo "[!] composer.lock 不存在，执行 composer update 生成依赖..."; \
@@ -62,6 +64,7 @@ RUN if [ -f composer.lock ]; then \
             --optimize-autoloader \
             --no-progress \
             --no-audit \
+            --ignore-platform-req=php \
             --ignore-platform-req=ext-pcntl; \
     fi
 
@@ -83,6 +86,9 @@ RUN apk add --no-cache \
     linux-headers \
     # 性能监控
     fcgi \
+    # 数据库/缓存客户端（entrypoint.sh 用 mysqladmin/redis-cli 等待就绪）
+    mysql-client \
+    redis \
     # 安全更新
     tzdata \
     && cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \

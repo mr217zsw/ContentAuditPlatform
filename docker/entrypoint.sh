@@ -6,7 +6,8 @@ set -e
 # ============================================================
 
 echo "[entrypoint] 等待 MySQL 就绪..."
-until mysqladmin ping -h mysql -u root -proot_secret --silent 2>/dev/null; do
+# 使用 $DB_PASSWORD 而不是硬编码 root_secret（否则 .env.production 生成的随机密码会一直 ping 失败）
+until mysqladmin ping -h mysql -u root -p"$DB_PASSWORD" --silent 2>/dev/null; do
   echo "  MySQL 未就绪, 等待..."
   sleep 2
 done
