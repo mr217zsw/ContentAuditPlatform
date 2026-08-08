@@ -13,6 +13,7 @@ services:
     volumes:
       - ./storage:/var/www/storage
       - ./bootstrap/cache:/var/www/bootstrap/cache
+      - ./.env.production:/var/www/.env:ro
     ports:
       - "${APP_PORT:-8080}:80"
     depends_on:
@@ -88,6 +89,7 @@ services:
     volumes:
       - ./storage:/var/www/storage
       - ./bootstrap/cache:/var/www/bootstrap/cache
+      - ./.env.production:/var/www/.env:ro
     depends_on:
       mysql:
         condition: service_healthy
@@ -118,6 +120,7 @@ services:
     volumes:
       - ./storage:/var/www/storage
       - ./bootstrap/cache:/var/www/bootstrap/cache
+      - ./.env.production:/var/www/.env:ro
     ports:
       - "${REVERB_PORT:-8081}:${REVERB_PORT:-8081}"
     depends_on:
@@ -146,6 +149,7 @@ services:
     volumes:
       - ./storage:/var/www/storage
       - ./bootstrap/cache:/var/www/bootstrap/cache
+      - ./.env.production:/var/www/.env:ro
     depends_on:
       mysql:
         condition: service_healthy

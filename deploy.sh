@@ -154,7 +154,7 @@ BASE_IMAGES=(
     "composer:2"
     "php:8.2-fpm-alpine"
     "nginx:1.25-alpine"
-    "redis:7-alpine"
+    "redis:7"
     "mysql:8.0"
     "prom/prometheus:latest"
     "grafana/grafana:latest"
