@@ -11,8 +11,9 @@ FROM node:20-alpine AS frontend
 WORKDIR /build
 
 # 配置国内镜像源（解决服务器拉取依赖卡死的问题）
-RUN npm config set registry https://registry.npmmirror.com && \
-    npm config set esbuild_binary_host https://npmmirror.com/mirrors/esbuild
+# ESBUILD_BINARY_HOST 通过 ENV 直接传给 esbuild 安装脚本（npm 10+ 已不支持 npm config 方式）
+ENV ESBUILD_BINARY_HOST=https://npmmirror.com/mirrors/esbuild
+RUN npm config set registry https://registry.npmmirror.com
 
 COPY package.json package-lock.json* ./
 RUN npm ci --no-audit --no-fund 2>/dev/null || npm install --no-audit --no-fund --prefer-offline
