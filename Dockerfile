@@ -12,11 +12,7 @@ WORKDIR /build
 
 # 配置国内镜像源（解决服务器拉取依赖卡死的问题）
 RUN npm config set registry https://registry.npmmirror.com && \
-    npm config set esbuild_binary_host https://npmmirror.com/mirrors/esbuild && \
-    npm config set fetch-timeout 60000 && \
-    npm config set fetch-retries 2 && \
-    npm config set fetch-retry-mintimeout 10000 && \
-    npm config set fetch-retry-maxtimeout 60000
+    npm config set esbuild_binary_host https://npmmirror.com/mirrors/esbuild
 
 COPY package.json package-lock.json* ./
 RUN npm ci --no-audit --no-fund 2>/dev/null || npm install --no-audit --no-fund --prefer-offline

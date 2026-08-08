@@ -192,26 +192,11 @@ echo -e "  ${CYAN}每完成一个构建步骤会显示进度...${NC}"
 echo ""
 
 BUILD_START=$(date +%s)
+docker compose build --progress=plain 2>&1
 
-# 构建超时保护：15 分钟（网络差时避免无限卡死）
-BUILD_TIMEOUT=900
-if command -v timeout &>/dev/null; then
-    timeout $BUILD_TIMEOUT docker compose build --progress=plain 2>&1
-    BUILD_EXIT=$?
-else
-    # 部分精简系统没有 timeout 命令，直接用 Perl 模拟
-    perl -e "alarm $BUILD_TIMEOUT; exec @ARGV" -- docker compose build --progress=plain 2>&1
-    BUILD_EXIT=$?
-fi
-
-if [ $BUILD_EXIT -ne 0 ]; then
+if [ $? -ne 0 ]; then
     echo ""
-    if [ $BUILD_EXIT -eq 124 ] || [ $BUILD_EXIT -eq 142 ]; then
-        echo -e "${RED}[✗] 镜像构建超时！(${BUILD_TIMEOUT}秒 / 15分钟)${NC}"
-        echo -e "${YELLOW}可能原因: npm/composer 下载卡死，请检查网络${NC}"
-    else
-        echo -e "${RED}[✗] 镜像构建失败！${NC}"
-    fi
+    echo -e "${RED}[✗] 镜像构建失败！${NC}"
     echo -e "${YELLOW}请手动执行以下命令查看详细错误：${NC}"
     echo -e "  docker compose build --progress=plain"
     exit 1
