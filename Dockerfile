@@ -86,9 +86,7 @@ RUN apk add --no-cache \
     linux-headers \
     # 性能监控
     fcgi \
-    # 数据库/缓存客户端（entrypoint.sh 用 mysqladmin/redis-cli 等待就绪）
-    # Alpine 上 mysql-client 是 dummy 包，没有 mysqladmin 二进制，真正的工具在 mariadb-client
-    mariadb-client \
+    # 缓存客户端（entrypoint.sh 用 redis-cli 等待 Redis 就绪；MySQL 改用 PHP PDO 检测）
     redis \
     # 安全更新
     tzdata \

@@ -57,23 +57,31 @@ fi
 # ===================== app 角色专属：等待基础设施就绪 + 缓存优化 =====================
 if [ "$APP_ROLE" = "app" ]; then
   echo "[entrypoint:app] 等待 MySQL 就绪..."
-  if command -v mysqladmin >/dev/null 2>&1; then
-    # 先用 root 尝试（MySQL 容器刚初始化时业务用户可能还不存在）
-    until mysqladmin ping -h mysql -uroot -p"$DB_PASSWORD" --silent 2>/dev/null; do
-      echo "  MySQL 未就绪, 等待..."
-      sleep 2
-    done
-    echo "[entrypoint] MySQL 已就绪."
-  elif command -v mysql >/dev/null 2>&1; then
-    # fallback: 没有 mysqladmin 时用 mysql 客户端检测
-    until mysql -h mysql -uroot -p"$DB_PASSWORD" -e "SELECT 1" --silent 2>/dev/null; do
-      echo "  MySQL 未就绪, 等待..."
-      sleep 2
-    done
-    echo "[entrypoint] MySQL 已就绪."
-  else
-    echo "  [!] mysql/mysqladmin 均不存在，跳过 MySQL 等待"
-  fi
+  # 使用 PHP PDO 检测 MySQL 连接。
+  # 为什么不用 mysqladmin？MySQL 8.0 默认拒绝 root 远程登录，即使用 root 密码也无法从 app 容器
+  # 通过 hostname "mysql" 连接；但业务用户（DB_USERNAME）在初始化时被授予了远程访问权限。
+  # PHP 镜像已经内置 pdo_mysql 扩展，无需额外安装客户端工具。
+  until php -r '
+    $host = getenv("DB_HOST") ?: "mysql";
+    $port = getenv("DB_PORT") ?: "3306";
+    $db   = getenv("DB_DATABASE") ?: "content_audit";
+    $user = getenv("DB_USERNAME") ?: "audit_user";
+    $pass = getenv("DB_PASSWORD") ?: "audit_secret";
+    try {
+      $pdo = new PDO("mysql:host={$host};port={$port};dbname={$db}", $user, $pass, [
+        PDO::ATTR_TIMEOUT => 3,
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+      ]);
+      $pdo->query("SELECT 1");
+      exit(0);
+    } catch (Exception $e) {
+      exit(1);
+    }
+  ' 2>/dev/null; do
+    echo "  MySQL 未就绪, 等待..."
+    sleep 2
+  done
+  echo "[entrypoint] MySQL 已就绪."
 
   echo "[entrypoint:app] 等待 Redis 就绪..."
   if command -v redis-cli >/dev/null 2>&1; then
