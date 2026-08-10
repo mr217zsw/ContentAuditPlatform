@@ -58,13 +58,21 @@ fi
 if [ "$APP_ROLE" = "app" ]; then
   echo "[entrypoint:app] 等待 MySQL 就绪..."
   if command -v mysqladmin >/dev/null 2>&1; then
-    until mysqladmin ping -h mysql -u root -p"$DB_PASSWORD" --silent 2>/dev/null; do
+    # 先用 root 尝试（MySQL 容器刚初始化时业务用户可能还不存在）
+    until mysqladmin ping -h mysql -uroot -p"$DB_PASSWORD" --silent 2>/dev/null; do
+      echo "  MySQL 未就绪, 等待..."
+      sleep 2
+    done
+    echo "[entrypoint] MySQL 已就绪."
+  elif command -v mysql >/dev/null 2>&1; then
+    # fallback: 没有 mysqladmin 时用 mysql 客户端检测
+    until mysql -h mysql -uroot -p"$DB_PASSWORD" -e "SELECT 1" --silent 2>/dev/null; do
       echo "  MySQL 未就绪, 等待..."
       sleep 2
     done
     echo "[entrypoint] MySQL 已就绪."
   else
-    echo "  [!] mysqladmin 不存在 (mariadb-client 未安装?)，跳过 MySQL 等待"
+    echo "  [!] mysql/mysqladmin 均不存在，跳过 MySQL 等待"
   fi
 
   echo "[entrypoint:app] 等待 Redis 就绪..."
