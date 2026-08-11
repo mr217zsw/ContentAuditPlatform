@@ -25,7 +25,7 @@ COPY public/ public/
 RUN npm run build
 
 # ===================== 阶段 2: Composer 依赖安装 =====================
-FROM composer:2 AS vendor
+FROM composer:2.7 AS vendor
 
 WORKDIR /build
 
