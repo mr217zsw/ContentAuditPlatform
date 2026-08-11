@@ -13,38 +13,66 @@ set -e
 
 APP_ROLE="${APP_ROLE:-app}"
 
-# ===================== 所有角色共用：确保 .env 存在 + APP_KEY 已生成 =====================
+# ===================== 所有角色共用：确保 .env 存在（可写副本） + APP_KEY 已生成 =====================
 # Laravel 启动必须有 .env 文件，否则 app() 容器返回 null，导致 "Call to a member function make() on null"
+#
+# 设计说明：
+#   docker-compose 将 .env.production 以只读方式挂载到 /var/www/.env.production
+#   容器启动时，entrypoint 将其复制为可写的 /var/www/.env，然后在此基础上生成 APP_KEY。
+#   这样既能安全注入配置模板，又能让容器内部自动生成缺失的 APP_KEY。
 if [ ! -f /var/www/.env ]; then
   if [ -f /var/www/.env.production ]; then
-    echo "[entrypoint:${APP_ROLE}] .env 不存在, 从 .env.production 创建..."
+    echo "[entrypoint:${APP_ROLE}] .env 不存在, 从 .env.production 创建可写副本..."
     cp /var/www/.env.production /var/www/.env
+    chown www-data:www-data /var/www/.env 2>/dev/null || true
+    chmod 644 /var/www/.env 2>/dev/null || true
   elif [ -f /var/www/.env.example ]; then
     echo "[entrypoint:${APP_ROLE}] .env 不存在, 从 .env.example 创建..."
     cp /var/www/.env.example /var/www/.env
+    chown www-data:www-data /var/www/.env 2>/dev/null || true
   else
     echo "[entrypoint:${APP_ROLE}] 警告: 没有 .env 模板文件，Laravel 可能无法启动"
   fi
 fi
 
-if ! grep -q "^APP_KEY=base64:" /var/www/.env 2>/dev/null; then
-  echo "[entrypoint:${APP_ROLE}] APP_KEY 未设置, 自动生成..."
+# 检查 APP_KEY 是否有效（排除占位符 "请运行 php artisan key:generate" 等无效值）
+# 有效 APP_KEY 格式: base64: 后跟至少 44 位纯 base64 字符 (A-Za-z0-9+/=)
+NEED_KEY=0
+CURRENT_KEY=$(grep "^APP_KEY=" /var/www/.env 2>/dev/null | cut -d= -f2-)
+if [ -z "$CURRENT_KEY" ]; then
+  NEED_KEY=1
+else
+  # 提取 base64: 后面的部分，判断是否包含中文/空格等非 base64 字符（即占位符）
+  KEY_PAYLOAD=$(echo "$CURRENT_KEY" | sed 's/^base64://')
+  if echo "$KEY_PAYLOAD" | grep -q '[^A-Za-z0-9+/=[:space:]]' 2>/dev/null; then
+    echo "[entrypoint:${APP_ROLE}] APP_KEY 包含无效字符（可能是占位符），将重新生成..."
+    NEED_KEY=1
+  fi
+fi
+
+if [ "$NEED_KEY" = "1" ]; then
+  echo "[entrypoint:${APP_ROLE}] APP_KEY 未设置或无效, 自动生成..."
 
   # 方法 1: 尝试 artisan key:generate（正常路径）
   cd /var/www && php artisan key:generate --force --no-interaction 2>/dev/null || true
 
-  # 方法 2: fallback - 如果 artisan 因 OPcache CLI 冲突等原因失败，直接用 PHP 生成 APP_KEY 并写入 .env
-  if ! grep -q "^APP_KEY=base64:" /var/www/.env 2>/dev/null; then
-    echo "[entrypoint:${APP_ROLE}] artisan key:generate 未能写入 APP_KEY，使用 fallback 直接生成..."
+  # 再次校验 artisan 是否成功写入了有效 APP_KEY
+  NEW_KEY=$(grep "^APP_KEY=" /var/www/.env 2>/dev/null | cut -d= -f2-)
+  NEW_PAYLOAD=$(echo "$NEW_KEY" | sed 's/^base64://')
+  if [ -n "$NEW_PAYLOAD" ] && ! echo "$NEW_PAYLOAD" | grep -q '[^A-Za-z0-9+/=[:space:]]' 2>/dev/null; then
+    echo "[entrypoint:${APP_ROLE}] artisan key:generate 成功生成 APP_KEY"
+  else
+    # 方法 2: fallback - PHP 直接生成并写入 .env
+    echo "[entrypoint:${APP_ROLE}] artisan key:generate 未能写入有效 APP_KEY，使用 fallback 直接生成..."
     FALLBACK_KEY=$(php -r 'echo "base64:" . base64_encode(random_bytes(32));')
     if [ -n "$FALLBACK_KEY" ]; then
-      # 如果 .env 中已有空的 APP_KEY= 行，则替换；否则追加
       if grep -q "^APP_KEY=" /var/www/.env 2>/dev/null; then
         sed -i "s|^APP_KEY=.*|APP_KEY=${FALLBACK_KEY}|" /var/www/.env
       else
         echo "APP_KEY=${FALLBACK_KEY}" >> /var/www/.env
       fi
-      echo "[entrypoint:${APP_ROLE}] APP_KEY 已通过 fallback 写入: ${FALLBACK_KEY}"
+      echo "[entrypoint:${APP_ROLE}] APP_KEY 已通过 fallback 写入"
+      # 不打印完整 KEY，避免泄露到日志
     else
       echo "[entrypoint:${APP_ROLE}] 严重错误: 无法生成 APP_KEY！Laravel 将无法启动"
     fi
