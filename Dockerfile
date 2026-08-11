@@ -33,7 +33,9 @@ WORKDIR /build
 RUN composer config -g repos.packagist composer https://mirrors.aliyun.com/composer/
 
 # 关闭 Composer 2.8+ 的安全阻断机制（policy.advisories.block 默认 true 会拒绝安装有 PKSA 公告的包）
-RUN composer config -g policy.advisories.block false
+# 用 ENV 方式更稳，避免某些版本 composer config CLI 解析异常
+ENV COMPOSER_AUDIT=0
+ENV COMPOSER_NO_AUDIT=1
 
 COPY composer.json composer.lock* ./
 
