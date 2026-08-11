@@ -97,10 +97,15 @@ if [ "$APP_ROLE" = "app" ]; then
   # 生产环境缓存优化（只在 app 角色里做，避免 4 容器并发跑 config:cache 文件锁竞争）
   if [ "$APP_ENV" = "production" ]; then
     echo "[entrypoint] 生产环境优化缓存..."
-    php artisan config:cache
-    php artisan route:cache
-    php artisan view:cache
-    php artisan event:cache
+
+    # 确保 bootstrap/cache 和 storage 目录可写（防止 "Call to a member function make() on null"）
+    chown -R www-data:www-data /var/www/bootstrap/cache /var/www/storage 2>/dev/null || true
+    chmod -R ug+rwX /var/www/bootstrap/cache /var/www/storage 2>/dev/null || true
+
+    php artisan config:cache || echo "[entrypoint:warn] config:cache 失败，继续启动"
+    php artisan route:cache  || echo "[entrypoint:warn] route:cache 失败，继续启动"
+    php artisan view:cache   || echo "[entrypoint:warn] view:cache 失败，继续启动"
+    php artisan event:cache  2>/dev/null || true
   fi
 
   echo "[entrypoint] 启动 Supervisor..."
