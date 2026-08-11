@@ -122,14 +122,18 @@ if [ "$APP_ROLE" = "app" ]; then
     echo "  [!] redis-cli 不存在, 跳过 Redis 等待"
   fi
 
-  # 生产环境缓存优化（只在 app 角色里做，避免 4 容器并发跑 config:cache 文件锁竞争）
+  # 生产环境：数据库迁移 + 缓存优化（只在 app 角色里做，避免 4 容器并发跑）
   if [ "$APP_ENV" = "production" ]; then
-    echo "[entrypoint] 生产环境优化缓存..."
+    echo "[entrypoint] 生产环境数据库迁移..."
 
     # 确保 bootstrap/cache 和 storage 目录可写（防止 "Call to a member function make() on null"）
     chown -R www-data:www-data /var/www/bootstrap/cache /var/www/storage 2>/dev/null || true
     chmod -R ug+rwX /var/www/bootstrap/cache /var/www/storage 2>/dev/null || true
 
+    # 先跑迁移，确保 sessions/jobs 等 database 驱动的表存在（即使默认驱动不是 database，避免回退时崩溃）
+    php artisan migrate --force --no-interaction || echo "[entrypoint:warn] migrate 失败，继续启动"
+
+    echo "[entrypoint] 生产环境优化缓存..."
     php artisan config:cache || echo "[entrypoint:warn] config:cache 失败，继续启动"
     php artisan route:cache  || echo "[entrypoint:warn] route:cache 失败，继续启动"
     php artisan view:cache   || echo "[entrypoint:warn] view:cache 失败，继续启动"
